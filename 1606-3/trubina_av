@@ -1,0 +1,79 @@
+#include "mpi.h" 
+#include <Windows.h>
+#include <time.h>
+#include <iostream>
+
+using namespace std;
+
+int main(int argc, char* argv[])
+{
+	setlocale(LC_ALL, "Russian");
+	int n = 50000;
+	int sum = 0;
+	int sumparral = 0;
+	int sumtmp = 0;
+	int ProcNum, ProcRank;
+	double timepar1, timepar2;
+	LARGE_INTEGER frequency;
+	LARGE_INTEGER time1, time2;
+
+	MPI_Init(&argc, &argv);
+	MPI_Comm_size(MPI_COMM_WORLD, &ProcNum);
+	MPI_Comm_rank(MPI_COMM_WORLD, &ProcRank);
+	MPI_Status Status;
+	int countelem, index = 0;
+	int *mas = new int[n];
+	for (int i = 0; i < n; i++)
+	{
+		mas[i] = rand() % 10;
+	}
+	cout << endl;
+	countelem = n / ProcNum;
+	int *tmp = new int[countelem];
+	
+	if (ProcRank == 0)
+	{
+		timepar1 = MPI_Wtime();
+		
+		for (int i = 1; i < ProcNum; i++)
+		{
+			tmp = mas + countelem * (i - 1);
+			MPI_Send(tmp, countelem, MPI_INT, i, 0, MPI_COMM_WORLD);
+		}
+
+		for (int i = (ProcNum - 1)*countelem; i < n; i++)
+		{
+			sumparral += mas[i];
+		}
+		
+		for (int i = 1; i < ProcNum; i++)
+		{
+			MPI_Recv(&sumtmp, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &Status);
+			sumparral += sumtmp;
+		}
+		timepar2 = MPI_Wtime();
+
+		QueryPerformanceFrequency(&frequency);
+		QueryPerformanceCounter(&time1);
+		for (int i = 0; i < n; i++)
+			sum += mas[i];
+		QueryPerformanceCounter(&time2);
+
+		cout << "sum = " << sum << "    time=" << (time2.QuadPart - time1.QuadPart)*1.0 / frequency.QuadPart << endl;
+		cout << "sumParral = " << sumparral << "    timeParral=" << timepar2 - timepar1 << endl;
+
+	}
+
+	if (ProcRank != 0)
+	{
+		MPI_Recv(tmp, countelem, MPI_INT, 0, 0, MPI_COMM_WORLD, &Status);
+		for (int i = 0; i < countelem; i++)
+			sumtmp += tmp[i];
+		MPI_Send(&sumtmp, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+	}
+
+	MPI_Finalize();
+	delete mas;
+	return 0;
+	system("pause");
+}
